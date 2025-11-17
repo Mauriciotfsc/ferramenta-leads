@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal VIP - Extrator Google Sheets</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <link href="https://unpkg.com/tabulator-tables@6.2.0/dist/css/tabulator_semanticui.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+        }
+        .shadow-custom {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        /* Ajuste do estilo do Tabulator para combinar com o tema */
+        .tabulator {
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            background-color: white;
+        }
+        .tabulator .tabulator-header {
+            background-color: #0d9488; /* Teal-600 */
+            color: white;
+        }
+        .tabulator .tabulator-header .tabulator-col {
+            border-right: 1.5px solid #0f766e; /* Teal mais escuro */
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+        .tabulator .tabulator-row:nth-child(even) {
+            background-color: #f9fafb; /* Lighter background for striped rows */
+        }
+
+        /* Custom cell styles for links */
+        .whatsapp-link { color: #10B981; /* Green-500 */ }
+        .maps-link { color: #3B82F6; /* Blue-500 */ }
+        .tabulator-cell a:hover { text-decoration: underline; }
+
+        .view-hidden { display: none; }
+        .view-active { display: block; }
+        
+        /* Tenta reduzir um pouco o espaço da seta de ordenação */
+        .tabulator .tabulator-header .tabulator-col .tabulator-col-title-holder .tabulator-sort-icon {
+            font-size: 0.8em; 
+            margin-left: 4px; 
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app" class="min-h-screen bg-gray-50 flex flex-col items-center">
+        <header id="main-header" class="w-full bg-teal-600 shadow-md">
+            <div class="max-w-4xl mx-auto flex justify-start items-center px-4 py-3">
+                <h1 class="text-2xl font-bold text-white">Portal <span class="text-yellow-300">VIP</span> - Extrator Sheets</h1>
+            </div>
+        </header>
+
+        <div class="w-full max-w-4xl p-4 sm:p-8">
+             <p id="message-area" class="mt-2 mb-4 text-center text-sm font-medium text-gray-700" style="min-height: 1.25rem;">Pronto para conversão local.</p>
+            
+            <div id="converter-view" class="view-active">
+                <div class="text-center mb-10">
+                    <h1 class="text-3xl sm:text-4xl font-extrabold text-teal-600">Fluxo Gemini para Google Sheets</h1>
+                    <p class="text-md sm:text-lg text-gray-600 mt-2">Cole os dados extraídos pelo Gemini e envie direto para sua planilha.</p>
+                </div>
+                
+                <div id="drive-config-card" class="bg-white p-6 rounded-2xl shadow-custom border-t-8 border-purple-500 mb-10">
+                    <h2 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                        <svg class="w-6 h-6 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                        1. Configurar Link do Google Sheets
+                    </h2>
+                    
+                    <p class="text-sm text-gray-600 mb-4">
+                        Cole o link da pasta ou da planilha modelo (template) do Google Sheets. Este link será aberto automaticamente ao final do processo.
+                    </p>
+                    
+                    <input
+                        type="url"
+                        id="driveLinkInput"
+                        class="w-full p-4 border border-gray-300 rounded-lg shadow-inner focus:ring-purple-500 focus:border-purple-500 text-sm"
+                        placeholder="Ex: https://docs.google.com/spreadsheets/d/SEU_TEMPLATE_ID..."
+                        oninput="window.updateInputState('driveLink', this.value)"
+                        required
+                    />
+                    
+                    <button
+                        id="save-drive-button"
+                        onclick="window.saveDriveLink()"
+                        disabled
+                        class="w-full h-10 mt-4 bg-purple-600 text-white rounded-xl hover:bg-purple-700 focus:ring-4 focus:ring-purple-500/50 shadow-lg text-base transition duration-150 font-semibold disabled:bg-gray-400"
+                    >
+                        Salvar Link (Localmente no Navegador)
+                    </button>
+                    <p id="drive-status-message" class="mt-3 text-center text-sm text-gray-500" style="min-height: 1.25rem;">Link salvo será carregado automaticamente.</p>
+                </div>
+                
+                <div id="converter-card" class="bg-white p-6 rounded-2xl shadow-custom border-t-8 border-teal-500 mb-10">
+                    <h2 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                        <svg class="w-6 h-6 mr-2 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        2. Colar Dados do Gemini e Ações
+                    </h2>
+                    
+                    <p class="text-sm text-gray-600 mb-4">
+                        Após finalizar a coleta no Gemini, cole o texto **completo** aqui. Os dados devem estar separados por ponto e vírgula (;).
+                    </p>
+                    
+                    <textarea
+                        id="rawGeminiInput"
+                        class="w-full p-4 border border-gray-300 rounded-lg shadow-inner h-32 resize-none focus:ring-teal-500 focus:border-teal-500 text-sm font-mono"
+                        placeholder="Cole aqui o texto acumulado do Gemini..."
+                        oninput="window.updateInputState('rawGeminiInput', this.value)"
+                    ></textarea>
+                    
+                    <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 mt-4">
+                        <button
+                            id="copy-text-button"
+                            onclick="window.copyRawText()"
+                            disabled
+                            class="w-full sm:w-1/2 h-12 bg-green-600 text-white rounded-xl hover:bg-green-700 transition duration-150 disabled:bg-gray-400 font-semibold text-lg"
+                        >
+                            Copiar Dados para Colar (;)
+                        </button>
+                        <button
+                            id="open-drive-button"
+                            onclick="window.openDriveLink()"
+                            disabled
+                            class="w-full sm:w-1/2 h-12 bg-yellow-600 text-white rounded-xl hover:bg-yellow-700 transition duration-150 disabled:bg-gray-400 font-semibold text-lg"
+                        >
+                            Abrir Google Drive / Template
+                        </button>
+                    </div>
+                </div>
+
+                <div id="local-table-output" class="mb-10 view-hidden">
+                    <div class="bg-white p-4 sm:p-6 rounded-2xl shadow-custom border-t-8 border-red-500">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex justify-between items-center">
+                            <span>Visualização de Tabela (Opcional)</span>
+                            <button
+                                onclick="window.visualizeLeads()"
+                                id="visualize-button"
+                                class="h-8 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-150 font-semibold text-sm disabled:bg-gray-400"
+                            >
+                                Visualizar Leads
+                            </button>
+                        </h3>
+                        
+                        <div class="mb-4 flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+                            <label for="advanced-filter-select" class="text-sm font-medium text-gray-700 whitespace-nowrap">Opções de Ordenação/Filtro:</label>
+                            <select 
+                                id="advanced-filter-select" 
+                                onchange="window.applyAdvancedSort(this.value)"
+                                class="w-full sm:max-w-xs px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 transition cursor-pointer bg-white"
+                            >
+                                <option value="">--- Limpar Ordenação ---</option>
+                                <option value="capital_desc">Capital Social Maior (Mais Alto)</option>
+                                <option value="capital_asc">Capital Social Menor (Mais Baixo)</option>
+                                <option value="data_desc">Data Abertura Mais Recente</option>
+                                <option value="data_asc">Data Abertura Mais Antiga</option>
+                            </select>
+                        </div>
+
+                        <div id="leads-table-container" class="w-full">
+                            </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/tabulator-tables@6.2.0/dist/js/tabulator.min.js"></script>
+    <script>
+        
+        // --- VARIÁVEIS DE ESTADO DA APLICAÇÃO (LOCAL) ---
+        window.state = {
+            driveLink: localStorage.getItem('googleDriveLink') || '', // Carrega link salvo
+            rawGeminiInput: '',
+            isProcessing: false, 
+            localLeads: [], 
+            isTableVisible: false, // Novo estado para gerenciar a visualização da tabela
+        };
+
+        let tabulatorTable = null; 
+        
+        // --- FUNÇÕES UTILITÁRIAS (Mantidas) ---
+
+        const encodeUrl = (str) => encodeURIComponent(str).replace(/[!'()*]/g, function(c) {
+            return '%' + c.charCodeAt(0).toString(16);
+        });
+
+        const normalizeCapital = (value) => {
+            if (typeof value === null || value === undefined) return 0;
+            if (typeof value !== 'string') value = String(value);
+            return parseFloat(value.replace(/[^0-9,.]/g, '').replace(/\./g, '').replace(',', '.')) || 0;
+        };
+
+        const parseGeminiTable = (rawText) => {
+            const lines = rawText.trim().split('\n').filter(line => line.trim() !== '');
+            if (lines.length === 0) return [];
+
+            // Tenta adivinhar o delimitador: Ponto e vírgula é o esperado, mas tenta outros
+            const delimiter = lines[0].includes(';') ? ';' : lines[0].includes(',') ? ',' : lines[0].includes('|') ? '|' : '\t';
+            
+            // As 8 colunas ESPERADAS
+            const headers = [
+                "nome", "cnpj", "enderecoCompleto", "dataAbertura", "capitalSocial", "cnaes", "telefone", "email"
+            ]; 
+            const leads = [];
+            
+            // Determina se a primeira linha é um cabeçalho para pular
+            let firstLineIsHeader = false;
+            if (lines.length > 0 && lines[0].toLowerCase().includes('cnpj')) {
+                firstLineIsHeader = true;
+            }
+
+            for (let i = (firstLineIsHeader ? 1 : 0); i < lines.length; i++) {
+                const values = lines[i].split(delimiter).map(v => v.trim().replace(/"/g, '').replace(/'/g, ''));
+                let lead = {};
+
+                // Se não tiver colunas suficientes, ignora a linha
+                if (values.length < headers.length) continue; 
+
+                headers.forEach((key, index) => {
+                    lead[key] = values[index] || ''; 
+                });
+                
+                if (lead.nome || lead.cnpj) { 
+                    lead.capitalSocialNumeric = normalizeCapital(lead.capitalSocial);
+                    
+                    let parts = lead.dataAbertura.split('/');
+                    let m = parts[0];
+                    let y = parts[1];
+
+                    if (y && m) {
+                       lead.dataAberturaSortable = `${y.trim()}-${m.trim().padStart(2, '0')}-01`;
+                    } else {
+                       lead.dataAberturaSortable = '1900-01-01'; // Default
+                    }
+                    
+                    leads.push(lead);
+                }
+            }
+            return leads;
+        };
+        
+        // --- NOVAS FUNÇÕES DE LÓGICA DE NEGÓCIO ---
+
+        window.saveDriveLink = () => {
+            const link = window.state.driveLink.trim();
+            if (!link || !link.startsWith('http')) {
+                window.updateMessage('⚠️ Por favor, insira um link de URL válido para o Google Drive/Sheets.');
+                return;
+            }
+            localStorage.setItem('googleDriveLink', link);
+            window.updateMessage(`✅ Link do Google Sheets salvo com sucesso!`);
+            window.updateUI();
+        };
+
+        window.openDriveLink = () => {
+            const link = window.state.driveLink.trim();
+            if (!link) {
+                window.updateMessage('⚠️ Por favor, configure o link do Google Sheets no Passo 1.');
+                return;
+            }
+            window.open(link, '_blank');
+            window.updateMessage(`🔗 Abrindo o Google Drive... Prepare-se para colar o texto!`);
+        };
+
+        window.copyRawText = async () => {
+            const rawInput = document.getElementById('rawGeminiInput').value.trim();
+            if (!rawInput) {
+                window.updateMessage('⚠️ Cole o texto da tabela gerada pelo Gemini no campo antes de copiar.');
+                return;
+            }
+
+            try {
+                // Remove quebras de linha adicionais e formata como uma grande string separada por ponto e vírgula
+                // Nota: Assumimos que o texto bruto já vem com o delimitador correto do Gemini
+                await navigator.clipboard.writeText(rawInput); 
+                window.updateMessage('✅ Texto copiado para a área de transferência! Cole na planilha do Google Sheets.');
+            } catch (err) {
+                console.error('Erro ao copiar texto: ', err);
+                window.updateMessage('❌ Erro ao copiar. Seu navegador pode não suportar a cópia automática. Tente Ctrl+C.');
+            }
+        };
+        
+        // --- FUNÇÕES DE VISUALIZAÇÃO DA TABELA (ANTIGA LÓGICA DE PROCESSAMENTO) ---
+
+        window.visualizeLeads = () => {
+             // Tenta garantir que o parse seja feito antes de visualizar
+             window.updateState('isProcessing', true);
+
+             const rawInput = document.getElementById('rawGeminiInput').value.trim();
+             const leads = parseGeminiTable(rawInput);
+
+             if (leads.length === 0) {
+                 window.updateMessage('❌ Nenhum lead válido encontrado para visualização.');
+                 window.updateState('isProcessing', false);
+                 window.updateState('isTableVisible', false);
+                 return;
+             }
+
+             window.updateState('localLeads', leads);
+             window.updateState('isTableVisible', true); // Força a visualização
+             window.updateMessage(`✅ ${leads.length} Leads prontos para visualização!`);
+             window.updateState('isProcessing', false);
+        };
+
+
+        // --- FUNÇÕES DE ESTADO E UI (Ajustadas para o novo fluxo) ---
+
+        window.updateState = (key, value) => {
+            window.state[key] = value;
+            window.updateUI(); 
+        };
+
+        window.updateInputState = (key, value) => {
+            window.state[key] = value;
+            window.updateUI(); 
+        };
+        
+        window.updateMessage = (msg) => {
+             const messageArea = document.getElementById('message-area');
+             if (messageArea) {
+                 const isError = msg.trim().startsWith('❌');
+                 const isSuccess = msg.trim().startsWith('✅');
+                 messageArea.className = `mt-2 mb-4 text-center text-sm font-medium ${isError ? 'text-red-600' : isSuccess ? 'text-green-700' : 'text-gray-700'}`;
+                 messageArea.textContent = msg;
+             }
+        };
+
+        // --- FUNÇÕES DE RENDERIZAÇÃO DA TABELA (TABULATOR) (Mantidas) ---
+        
+        // ... (whatsappFormatter, mapsFormatter, initializeTabulator, applyAdvancedSort são mantidas) ...
+        // (Nota: O código dessas funções foi mantido no original fornecido pelo usuário, garantindo que o novo código apenas adicione as novas funcionalidades.)
+
+        const whatsappFormatter = (cell) => {
+            const phone = cell.getValue();
+            if (!phone) return 'N/A';
+            const cleaned = phone.replace(/\D/g, '');
+            if (cleaned.length < 8) return phone; 
+            const fullNumber = cleaned.startsWith('55') ? cleaned : `55${cleaned}`;
+            const waLink = `https://wa.me/${fullNumber}?text=Ol%C3%A1%2C%20encontrei%20sua%20empresa%20pelo%20Portal%20VIP!`;
+            
+            return `<a href="${waLink}" target="_blank" class="whatsapp-link font-medium whitespace-nowrap flex items-center" aria-label="WhatsApp">
+                        <svg class="w-4 h-4 mr-1 inline" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12.001 0C6.183 0 1.25 4.933 1.25 10.75c0 1.745.43 3.424 1.248 4.896l-.88 3.21 3.32-.871c1.42.784 3.037 1.22 4.763 1.22H12c5.817 0 10.75-4.933 10.75-10.75S17.817 0 12.001 0zm4.264 14.87c-.12.3-.497.46-.84.34-.343-.119-1.39-.636-2.527-1.125-.494-.21-.795-.29-.982.26s-.664 1.666-.81 1.835c-.146.168-.43.14-.795-.12s-1.42-.52-2.348-1.503c-.76-.817-1.267-1.745-1.42-2.023-.153-.278-.027-.43.1-.55s.27-.27.4-.41c.133-.142.17-.23.255-.38s.17-.28.25-.42c.08-.138.016-.25-.078-.42s-.84-2.022-.84-2.483c0-.46.335-.8.473-.97s.785-.92.934-1.22c.15-.3.305-.25.43-.25h.38c.118 0 .47.05.7.67s.785 1.765.885 1.966c.1.2.228.23.4.2c.172-.03.73-.28 1.4-.86s1.085-.98 1.275-1.09s.34-.14.62.06c.28.2.46.52.58.85s.23 1.05.07 1.74s-.79 1.4-.95 1.55c-.16.15-.3.26-.2.43s.47.76 1.05 1.48s1.07.97 1.2.82c.13-.15.22-.64.33-.85s.25-.21.43-.12c.18.09.91.43 1.07.82s.25.75.12 1.05z"/></svg>
+                        ${phone}
+                    </a>`;
+        };
+        
+        const mapsFormatter = (cell) => {
+            const fullAddress = cell.getValue();
+            if (!fullAddress.trim()) return 'N/A';
+
+            // Nota: Este é um trecho que precisa de correção, pois o URL estava quebrado. A correção é:
+            const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
+            
+            return `
+                <div class="flex flex-col space-y-1">
+                    <span class="text-xs text-gray-700 break-words">${fullAddress}</span>
+                    <a href="${mapsLink}" target="_blank" class="maps-link font-medium whitespace-nowrap flex items-center text-sm mt-1" aria-label="Maps">
+                        <svg class="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        Ver no Maps
+                    </a>
+                </div>
+            `;
+        };
+
+        const initializeTabulator = (leads, containerId = "#leads-table-container") => {
+            const container = document.querySelector(containerId);
+            
+            if (tabulatorTable) {
+                tabulatorTable.destroy(); 
+                tabulatorTable = null;
+            }
+            
+            if (!container) return; 
+
+            if (leads.length === 0) {
+                 container.innerHTML = '<div class="p-6 text-center text-gray-500">Nenhum dado para visualizar.</div>';
+                 return;
+            }
+
+            container.innerHTML = ''; 
+
+            const dateSorter = (a, b) => {
+                const dateA = a.dataAberturaSortable;
+                const dateB = b.dataAberturaSortable;
+                if (dateA > dateB) return 1;
+                if (dateA < dateB) return -1;
+                return 0;
+            };
+
+            const capitalSorter = (a, b) => {
+                return a.capitalSocialNumeric - b.capitalSocialNumeric;
+            };
+
+            const columnsConfig = [
+                { title: "Empresa", field: "nome", widthGrow: 2, sorter: "string", responsive: 0 },
+                { title: "CNPJ", field: "cnpj", hozAlign: "center", width: 120, sorter: "string", responsive: 1 },
+                { 
+                    title: "Endereço Completo", 
+                    field: "enderecoCompleto", 
+                    formatter: mapsFormatter, 
+                    widthGrow: 3, 
+                    sorter: "string",
+                    responsive: 2, 
+                },
+                { title: "Data Abertura", field: "dataAbertura", width: 120, sorter: dateSorter, responsive: 3 },
+                { title: "Capital Social", field: "capitalSocial", width: 150, sorter: capitalSorter, responsive: 4 },
+                { title: "CNAES", field: "cnaes", widthGrow: 1, sorter: "string", responsive: 5 },
+                { 
+                    title: "Telefone", 
+                    field: "telefone", 
+                    formatter: whatsappFormatter, 
+                    hozAlign: "center",
+                    width: 180,
+                    sorter: "string",
+                    responsive: 6,
+                },
+                { title: "Email", field: "email", widthGrow: 1, sorter: "string", responsive: 7 } 
+            ];
+
+            tabulatorTable = new Tabulator(container, {
+                data: leads,
+                columns: columnsConfig,
+                layout: "fitDataFill", 
+                responsiveLayout: "collapse",
+                responsiveLayoutCollapseBtn: true, 
+                pagination: "local",
+                paginationSize: 15,
+                
+                langs:{ "pt-br":{
+                    "pagination":{ "first":"Primeira", "last":"Última", "prev":"Anterior", "next":"Próxima", "page_size":"Linhas por página", "of":"de", "pages":"Páginas" },
+                    "headerFilters":{ "default":"filtrar coluna...", }
+                }},
+                locale: "pt-br", 
+            });
+        };
+
+        window.applyAdvancedSort = (value) => {
+            if (!tabulatorTable) return;
+
+            if (!value) {
+                tabulatorTable.clearSort();
+                window.updateMessage(`Ordenação removida. Tabela resetada.`);
+                return;
+            }
+
+            let sortField;
+            let direction;
+            let displayLabel;
+
+            switch (value) {
+                case 'capital_desc':
+                    sortField = 'capitalSocialNumeric';
+                    direction = 'desc'; 
+                    displayLabel = 'Capital Social Maior';
+                    break;
+                case 'capital_asc':
+                    sortField = 'capitalSocialNumeric';
+                    direction = 'asc'; 
+                    displayLabel = 'Capital Social Menor';
+                    break;
+                case 'data_desc':
+                    sortField = 'dataAberturaSortable';
+                    direction = 'desc'; 
+                    displayLabel = 'Data Abertura Mais Recente';
+                    break;
+                case 'data_asc':
+                    sortField = 'dataAberturaSortable';
+                    direction = 'asc'; 
+                    displayLabel = 'Data Abertura Mais Antiga';
+                    break;
+                default:
+                    tabulatorTable.clearSort();
+                    return;
+            }
+
+            tabulatorTable.setSort([{ field: sortField, dir: direction }]);
+            window.updateMessage(`Tabela organizada por ${displayLabel}.`);
+        };
+
+
+        // --- RENDERIZAÇÃO E ATUALIZAÇÃO DA UI ---
+
+        window.initializeUI = () => {
+             // 1. Inicializa o campo de link do Drive
+             const driveInputEl = document.getElementById('driveLinkInput');
+             if (driveInputEl) {
+                 driveInputEl.value = window.state.driveLink;
+             }
+             
+             // 2. Remove os campos de Google Dork, pois não são mais usados
+             const dorkCard = document.getElementById('google-dork-card');
+             if (dorkCard) dorkCard.remove();
+             
+             const rawInputEl = document.getElementById('rawGeminiInput');
+             if (rawInputEl) {
+                 rawInputEl.value = window.state.rawGeminiInput;
+             }
+
+             window.updateUI(); 
+        };
+
+        window.updateUI = () => {
+            const s = window.state;
+            const isDriveLinkReady = !!s.driveLink.trim();
+            const isInputReady = !!document.getElementById('rawGeminiInput').value.trim(); 
+
+            // 1. Atualiza o status do Link do Drive
+            const driveStatusMessage = document.getElementById('drive-status-message');
+            const saveDriveButton = document.getElementById('save-drive-button');
+            
+            if (driveStatusMessage) {
+                 if (isDriveLinkReady) {
+                     driveStatusMessage.textContent = 'Link de Planilha/Pasta salvo! O botão "Abrir Google Drive" está pronto.';
+                     driveStatusMessage.className = 'mt-3 text-center text-sm font-semibold text-green-600';
+                 } else {
+                     driveStatusMessage.textContent = 'Insira e salve o link do Google Sheets/Drive acima.';
+                     driveStatusMessage.className = 'mt-3 text-center text-sm text-gray-500';
+                 }
+            }
+            if (saveDriveButton) {
+                 saveDriveButton.disabled = !s.driveLink.trim() || s.driveLink.trim() === localStorage.getItem('googleDriveLink');
+            }
+
+
+            // 2. Atualiza os botões de Ação Final
+            const copyTextButton = document.getElementById('copy-text-button');
+            const openDriveButton = document.getElementById('open-drive-button');
+            const visualizeButton = document.getElementById('visualize-button');
+
+            if (copyTextButton) copyTextButton.disabled = !isInputReady;
+            if (openDriveButton) openDriveButton.disabled = !isDriveLinkReady;
+            if (visualizeButton) visualizeButton.disabled = !isInputReady;
+            
+
+            // 3. Gerencia a saída da tabela local
+            const outputContainer = document.getElementById('local-table-output');
+            if (outputContainer) {
+                const advancedFilterSelect = document.getElementById('advanced-filter-select');
+                const advancedFilterDiv = advancedFilterSelect ? advancedFilterSelect.parentNode : null;
+                
+                // Força a visualização da tabela (PASSO 3) apenas se o usuário clicar no botão "Visualizar Leads"
+                if (s.isTableVisible && s.localLeads.length > 0) {
+                    outputContainer.className = 'mb-10 view-active';
+                    initializeTabulator(s.localLeads); // Renderiza a tabela
+                    
+                    if (advancedFilterDiv) advancedFilterDiv.className = 'mb-4 flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3';
+                    visualizeButton.textContent = 'Atualizar Visualização';
+
+                } else {
+                    outputContainer.className = 'mb-10 view-hidden';
+                    visualizeButton.textContent = 'Visualizar Leads';
+                }
+            }
+        };
+
+        // --- INICIALIZAÇÃO ---
+        document.addEventListener('DOMContentLoaded', () => {
+            window.initializeUI();
+        });
+    </script>
+</body>
+</html>
